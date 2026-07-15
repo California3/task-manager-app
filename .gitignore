@@ -1,0 +1,22 @@
+# This is an artifacts-only repo. Release assets live on GitHub Releases,
+# never in the git tree. Keep the working tree documentation-only.
+
+# Release artifacts (binary / tarball / sidecar) — never commit
+*.tar.gz
+*.tar.gz.sha256
+task-manager-*
+*.sha256
+
+# Local build / staging leftovers, if someone accidentally runs a publish here
+releases/
+dist/
+build/
+*.tmp
+*.bak
+*~
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
