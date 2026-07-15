@@ -124,10 +124,10 @@ Resolution: **double-publish for 1-2 versions** during the transition
 window. For the next 1-2 Task Manager releases after this repo is live,
 the central build host will upload the binary both:
 
-- to the new public repo (`California3/task-manager-app`, tag `tm-v<ver>`),
+- to the new public repo (`California3/task-manager-app`, tag `tm-<ver>`),
   as specified in this document, and
 - to the legacy private repo (`California3/task-manager`,
-  tag `tm-v<ver>`), so that old clients whose baked-in fallback points at
+  tag `tm-<ver>`), so that old clients whose baked-in fallback points at
   the private repo can still upgrade.
 
 The version published to the legacy repo is the **first version that knows
