@@ -112,4 +112,4 @@ and as a prefix-filter key.
   used by clients so that 304 responses do not count against quota.
 - **Writing** (publishing releases) is only ever done from the central
   build host, which uses `gh` CLI with `GH_TOKEN` (PAT with `public_repo`
-  scope). Publication is gated by `TM_GITHUB_PUBLISH=1`.
+  scope). Publication is on by default; set `TM_GITHUB_PUBLISH=0` to skip.

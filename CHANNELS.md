@@ -28,13 +28,14 @@ Each of the three publish entry points (`build/publish.sh`,
    behavior, unchanged).
 2. Compute the sha256 and write a sibling `<asset>.sha256` sidecar (bare
    hex + optional newline).
-3. If `TM_GITHUB_PUBLISH=1` **and** `GH_TOKEN` is set, call the shared
+3. By default (or `TM_GITHUB_PUBLISH=1`), call the shared
    `build/_github_release.sh <tag> <asset> <sidecar> <notes-file>` helper,
    which runs `gh release create` (or `gh release upload --clobber` if the
    release already exists). `--notes-file` is used (not `--notes`) so
-   multi-line notes survive.
-4. If the gate or token is missing, emit
-   `WARN: GitHub publish skipped (TM_GITHUB_PUBLISH unset / GH_TOKEN missing)`
+   multi-line notes survive. Set `TM_GITHUB_PUBLISH=0` to skip GitHub upload
+   (dev/test scenarios).
+4. If gh is missing or auth fails, emit
+   `WARN: GitHub publish skipped (...)`
    and continue. Local publish success does not depend on GitHub upload
    success.
 
@@ -53,8 +54,9 @@ versions are bare (e.g. `2.1.141`, `0.1.8`, no leading `v`). Clients
 strip an optional leading `v` before parsing semver, so both forms
 compare correctly.
 
-The helper asserts `gh` is installed and `GH_TOKEN` is set before doing
-anything, so misconfiguration fails fast with an actionable message.
+The helper asserts `gh` is installed and either `GH_TOKEN` env or `gh auth
+login` stored auth is available before doing anything, so misconfiguration
+fails fast with an actionable message.
 
 ## Receive flow (clients)
 
