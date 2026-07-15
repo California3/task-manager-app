@@ -46,8 +46,12 @@ Tag and asset naming per channel:
 | Runtime   | `runtime-<plat>-<name>-<ver>` | `<name>-<ver>.tar.gz`, `<name>-<ver>.tar.gz.sha256`          |
 | Plugin    | `plugin-<plat>-<id>-<ver>`  | `<id>-<ver>.tar.gz`, `<id>-<ver>.tar.gz.sha256`                |
 
-`<ver>` is the bare version string with **no leading `v`** (e.g. `3.4.4`),
-emitted as-is from `dist/task-manager.version` by the publish scripts.
+`<ver>` is emitted as-is by the publish scripts. Convention differs per
+channel: the **TM binary** version carries a leading `v` (e.g. `v3.4.4`,
+read verbatim from `dist/task-manager.version`); **Runtime / Plugin**
+versions are bare (e.g. `2.1.141`, `0.1.8`, no leading `v`). Clients
+strip an optional leading `v` before parsing semver, so both forms
+compare correctly.
 
 The helper asserts `gh` is installed and `GH_TOKEN` is set before doing
 anything, so misconfiguration fails fast with an actionable message.

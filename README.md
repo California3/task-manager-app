@@ -31,10 +31,19 @@ and picking the highest semver.
 | Runtime      | `runtime-<plat>-<name>-<ver>`        | `<name>-<ver>.tar.gz` + `<name>-<ver>.tar.gz.sha256`                |
 | Plugin       | `plugin-<plat>-<id>-<ver>` (see note)| `<id>-<ver>.tar.gz` + `<id>-<ver>.tar.gz.sha256`                    |
 
-`<ver>` is the bare version string (e.g. `3.4.4`), with **no leading `v`** —
-the publish scripts emit it as-is from `dist/task-manager.version`. Tags,
-asset filenames, and the `version` field clients compare against all use the
-same bare form.
+`<ver>` is emitted as-is by the publish scripts and used uniformly in tags,
+asset filenames, and the `version` field clients compare against. The
+convention differs per channel:
+
+- **TM binary**: `<ver>` carries a leading `v` (e.g. `v3.4.4`), read
+  verbatim from `dist/task-manager.version`. Tag → `tm-v3.4.4`, asset →
+  `task-manager-v3.4.4`.
+- **Runtime / Plugin**: `<ver>` is bare (e.g. `2.1.141`, `0.1.8`), with no
+  leading `v`. Tag → `runtime-linux-x64-claude-2.1.141`, asset →
+  `claude-2.1.141.tar.gz`.
+
+Clients strip an optional leading `v` before `packaging.version.Version`
+parses the remainder, so both forms compare correctly.
 
 ### Latest semantics
 
