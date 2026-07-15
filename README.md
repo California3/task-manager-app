@@ -25,11 +25,16 @@ There is intentionally no top-level `manifest.json` in the git tree — clients
 discover the latest release by listing `/releases`, filtering by tag prefix,
 and picking the highest semver.
 
-| Channel      | Tag pattern                                  | Assets                                                                              |
-|--------------|----------------------------------------------|-------------------------------------------------------------------------------------|
-| TM binary    | `tm-v<ver>`                                  | `task-manager-<ver>` (no extension) + `task-manager-<ver>.sha256`                   |
-| Runtime      | `runtime-<plat>-<name>-v<ver>`               | `<name>-<ver>.tar.gz` + `<name>-<ver>.tar.gz.sha256`                                |
-| Plugin       | `plugin__<plat>__<id>__v<ver>` (see note)    | `<id>-<ver>.tar.gz` + `<id>-<ver>.tar.gz.sha256`                                    |
+| Channel      | Tag pattern                          | Assets                                                              |
+|--------------|--------------------------------------|---------------------------------------------------------------------|
+| TM binary    | `tm-<ver>`                           | `task-manager-<ver>` (no extension) + `task-manager-<ver>.sha256`   |
+| Runtime      | `runtime-<plat>-<name>-<ver>`        | `<name>-<ver>.tar.gz` + `<name>-<ver>.tar.gz.sha256`                |
+| Plugin       | `plugin-<plat>-<id>-<ver>` (see note)| `<id>-<ver>.tar.gz` + `<id>-<ver>.tar.gz.sha256`                    |
+
+`<ver>` is the bare version string (e.g. `3.4.4`), with **no leading `v`** —
+the publish scripts emit it as-is from `dist/task-manager.version`. Tags,
+asset filenames, and the `version` field clients compare against all use the
+same bare form.
 
 ### Latest semantics
 
@@ -43,7 +48,7 @@ Clients pick the latest release for a channel by:
 5. selecting the maximum semver.
 
 This means **rollback is delete-the-newer-release**: removing a newer
-`tm-v*` release from GitHub causes every client to fall back to the
+`tm-*` release from GitHub causes every client to fall back to the
 next-highest semver on its next poll. Re-publishing an older version number
 has the same effect.
 
@@ -64,22 +69,26 @@ staging; a missing sidecar is a hard error, not a fallback.
 
 ### Plugin tag format (disambiguation)
 
-Plugin ids historically may contain `-`, which makes the
-`plugin-<plat>-<id>-v<ver>` scheme ambiguous (e.g.
-`plugin-linux-x64-my-cool-tool-v1.0.0` cannot be unambiguously split into
-`plat=linux-x64`, `id=my-cool-tool`). To resolve this:
+Plugin ids may contain `-`, which makes a tag like
+`plugin-linux-x64-my-cool-tool-1.0.0` ambiguous **if you try to parse
+`<plat>` / `<id>` / `<ver>` back out of the tag by splitting on `-`**.
+The implementation avoids this entirely:
 
-- **Tag separator is double underscore (`__`)**:
-  `plugin__<plat>__<id>__v<ver>`.
-- `<plat>` and `<id>` are still constrained to `[A-Za-z0-9._-]+` for
-  filesystem safety, but the `__` separator is reserved and must not appear
-  inside `<plat>` or `<id>`.
-- Clients match the channel by prefix `plugin__` and recover `<plat>` /
-  `<id>` by splitting on `__`; they do not rely on the asset filename
-  alone.
+- The tag is `plugin-<plat>-<id>-<ver>` with ordinary single-`-` separators.
+  `<plat>` and `<id>` are still constrained to `[A-Za-z0-9._-]+` for
+  filesystem safety.
+- Clients **never parse the tag** for `<plat>` / `<id>` / `<ver>`. The
+  caller already knows `<plat>` and `<id>` (it's looking up a specific
+  plugin), so it builds the prefix `plugin-<plat>-<id>-` and filters
+  releases by `tag_name.startswith(prefix)`.
+- `<ver>` is recovered from the **asset filename**, not the tag: the asset
+  is `<id>-<ver>.tar.gz`, and the client strips the known `<id>-` prefix
+  and the `.tar.gz` suffix. Because `<id>` is known, this is unambiguous
+  regardless of `-` inside `<id>` or `<ver>`.
 
-Older `plugin-<plat>-<id>-v<ver>` tags (if any exist) are tolerated by
-prefix matching but not produced anymore.
+Net effect: the `-`-in-id ambiguity never arises, because no component
+ever splits the tag on `-`. The tag exists only for human/URL readability
+and as a prefix-filter key.
 
 ## Authentication
 

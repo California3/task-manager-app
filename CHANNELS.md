@@ -40,11 +40,14 @@ Each of the three publish entry points (`build/publish.sh`,
 
 Tag and asset naming per channel:
 
-| Channel   | Tag                              | Asset(s)                                                       |
-|-----------|----------------------------------|----------------------------------------------------------------|
-| Binary    | `tm-v<ver>`                      | `task-manager-<ver>`, `task-manager-<ver>.sha256`              |
-| Runtime   | `runtime-<plat>-<name>-v<ver>`   | `<name>-<ver>.tar.gz`, `<name>-<ver>.tar.gz.sha256`            |
-| Plugin    | `plugin__<plat>__<id>__v<ver>`   | `<id>-<ver>.tar.gz`, `<id>-<ver>.tar.gz.sha256`                |
+| Channel   | Tag                         | Asset(s)                                                       |
+|-----------|-----------------------------|----------------------------------------------------------------|
+| Binary    | `tm-<ver>`                  | `task-manager-<ver>`, `task-manager-<ver>.sha256`              |
+| Runtime   | `runtime-<plat>-<name>-<ver>` | `<name>-<ver>.tar.gz`, `<name>-<ver>.tar.gz.sha256`          |
+| Plugin    | `plugin-<plat>-<id>-<ver>`  | `<id>-<ver>.tar.gz`, `<id>-<ver>.tar.gz.sha256`                |
+
+`<ver>` is the bare version string with **no leading `v`** (e.g. `3.4.4`),
+emitted as-is from `dist/task-manager.version` by the publish scripts.
 
 The helper asserts `gh` is installed and `GH_TOKEN` is set before doing
 anything, so misconfiguration fails fast with an actionable message.
@@ -57,8 +60,10 @@ All three channels share one helper (`github_latest_by_prefix` /
 1. **List releases** for `California3/task-manager-app`, following
    `Link: rel="next"` pagination. per_page=100 across **all** channels, so
    capping at one page is not acceptable.
-2. **Filter by tag prefix** (`tm-v`, `runtime-<plat>-<name>-v`,
-   `plugin__<plat>__<id>__v`). Exclude `prerelease==true` and `draft==true`.
+2. **Filter by tag prefix** (`tm-`, `runtime-<plat>-<name>-`,
+   `plugin-<plat>-<id>-`). The caller already knows `<plat>` and `<id>`/
+   `<name>`, so the prefix is built from known values — the tag is never
+   parsed back into components. Exclude `prerelease==true` and `draft==true`.
 3. **Parse version**: strip the channel prefix and leading `v`, parse the
    remainder with `packaging.version.Version` (lenient). Tags that fail to
    parse are logged and excluded from latest contention.
