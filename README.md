@@ -113,3 +113,13 @@ and as a prefix-filter key.
 - **Writing** (publishing releases) is only ever done from the central
   build host, which uses `gh` CLI with `GH_TOKEN` (PAT with `public_repo`
   scope). Publication is on by default; set `TM_GITHUB_PUBLISH=0` to skip.
+
+## Prefer-fallback mode
+
+A client-side opt-in, `TM_GITHUB_PREFER` (env var, or Settings →
+Updates checkbox, default off). When on, the client skips the central
+source entirely and pulls all three channels (binary / runtime / plugin)
+directly from this repo. Use cases: testing the fallback path without
+taking central down, central known-bad / stale, debugging the GitHub
+consume chain. See `CHANNELS.md` for the full truth table and
+short-circuit protection.

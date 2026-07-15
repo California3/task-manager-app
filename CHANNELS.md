@@ -99,6 +99,24 @@ All three channels share one helper (`github_latest_by_prefix` /
   `obtainable` still reports only the central source's availability.
   Fallback is best-effort inside `ensure_*` / `_fetch_remote_manifest`.
 
+### Prefer-fallback mode (`TM_GITHUB_PREFER`)
+
+A client-side opt-in (env var, or Settings → Updates checkbox, default
+off). When on, the client **skips the central source entirely** and
+pulls all three channels (binary / runtime / plugin) directly from
+this GitHub repo. Use cases: testing the fallback path without taking
+central down, central known-bad / stale, debugging the GitHub consume
+chain.
+
+- `TM_GITHUB_PREFER=1` but `TM_GITHUB_REPO=""` → short-circuits back to
+  central-first (misconfiguration does not leave the client empty).
+- In prefer mode `obtainable()` reports the GitHub repo's availability
+  rather than central's — an intentional contract extension.
+- `status()` surfaces `prefer_github: true` when active. A successful
+  pull still sets `from_github: true`.
+- Off (default) = current behavior: central first, GitHub only on
+  failure.
+
 ## Rollback
 
 Two equivalent mechanisms:
