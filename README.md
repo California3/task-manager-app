@@ -124,18 +124,35 @@ taking central down, central known-bad / stale, debugging the GitHub
 consume chain. See `CHANNELS.md` for the full truth table and
 short-circuit protection.
 
-## Mirror acceleration
+## Unified source race + 5-min cache
 
 GitHub release assets are served from `release-assets.githubusercontent.com`
 (Azure blob) which has bad peering from some networks — observed 16 KB/s
 direct vs 11.7 MB/s through `ghfast.top` on the same host. `TM_GITHUB_MIRROR`
-(env var, or Settings → Updates text field) lets the client race multiple
-mirrors and pick the fastest per download.
+(env var, or Settings → Updates text field) lets the client race the central
+source, GitHub direct, and GitHub mirrors together — picking the fastest
+per download and caching the winner for 5 minutes.
 
-Built-in candidates (always present): `DIRECT`, `https://ghfast.top`,
-`https://gh-proxy.com`. The env var adds extra comma-separated prefixes.
-Before each download, all candidates are probed in parallel (512KB ranged
-GET, 8s wall-clock); the fastest wins, with fall-through on failure or
-sha256-mismatch. The sha256 sidecar is fetched DIRECT from GitHub (not
-mirrored), so retry-on-mismatch is safe. See `CHANNELS.md` for the full
-design.
+**All fetch types** — lists, manifests, version checks, and downloads, for
+all three channels (binary / runtime / plugin) — route through this single
+source race. The first download probes all candidates (512KB ranged GET,
+8s wall-clock); the fastest wins and is cached for 5 minutes. Within that
+window, every request (list, manifest, download) reuses the same winner.
+
+Built-in candidates (always present): `CENTRAL` (TM_UPDATE_SOURCE),
+`DIRECT` (github.com), `https://ghfast.top`, `https://gh-proxy.com`. The
+env var adds extra comma-separated prefixes. When the cached winner is
+GitHub-related, list/manifest requests go to the GitHub API directly
+(mirrors can't proxy API calls); download requests go through the mirror.
+When the winner is CENTRAL, everything goes through central HTTP.
+
+**sha256 trust root**: GitHub sidecar (HTTPS, fetched DIRECT) is preferred
+over central manifest sha256 (HTTP). When GitHub has the version, mirror
+bytes verify against the HTTPS-protected sidecar hash — a malicious mirror
+cannot influence the check. When GitHub lacks the version, central's HTTP
+hash is used (same as pre-change behavior).
+
+**Central version pin**: download URLs carry `?ver=<ver>` so the central
+server 404s on version skew, preventing bandwidth waste. The sha256 sidecar
+is fetched DIRECT from GitHub (not mirrored), so retry-on-mismatch is safe.
+See `CHANNELS.md` for the full design.

@@ -117,37 +117,51 @@ chain.
 - Off (default) = current behavior: central first, GitHub only on
   failure.
 
-### Mirror acceleration (`TM_GITHUB_MIRROR`)
+### Unified source race + 5-min cache (`TM_GITHUB_MIRROR`)
 
-GitHub release assets are served from `release-assets.githubusercontent.com`
-(Azure blob) which has bad peering from some networks — observed 16 KB/s
-direct vs 11.7 MB/s through a mirror on the same host. Clients can race
-multiple mirrors and pick the fastest per download.
+**Every fetch** that originally went through `TM_UPDATE_SOURCE` — lists,
+manifests, version checks, and downloads, for all three channels (binary /
+runtime / plugin) — now routes through a single source race. The candidate
+list is `[CENTRAL, GitHub-direct, ghfast.top, gh-proxy.com, ...user_mirrors]`.
+The fastest source is probed once (512KB ranged GET on the first download)
+and cached for 5 minutes. Within that window every request type reuses the
+same winner.
 
-- **Built-in candidates** (always present): `DIRECT` (no rewrite),
-  `https://ghfast.top`, `https://gh-proxy.com`.
-- **User-configured**: `TM_GITHUB_MIRROR` env or Settings → Updates text
-  field, comma-separated extra prefixes (e.g.
-  `https://my-mirror.example.com`). Deduped against built-ins.
-- **Selection strategy**: before each download, fire a 512KB ranged GET at
-  every candidate in parallel (8s wall-clock cutoff — `urlopen(timeout=8)`
-  is per-recv not total, so a hard wall-clock is enforced). Pick highest
-  throughput; on failure or sha256-mismatch, fall through to the next
-  candidate in throughput order.
-- **URL form**: `f"{prefix}/{asset_url}"` where `asset_url` is the
+- **Mirror URL form**: `f"{prefix}/{asset_url}"` where `asset_url` is the
   `github.com/.../releases/download/...` URL (pre-302). The mirror follows
   the redirect internally and streams back. `DIRECT` (`""`) leaves the URL
   unchanged.
-- **Security**: the sha256 sidecar is fetched DIRECT from GitHub (inside
-  `github_latest_by_prefix`, NOT mirrored), so retry-on-mismatch is safe —
-  every mirror's bytes verify against the same GitHub-sourced hash. A
-  malicious mirror cannot influence the check; it can only fail it.
-- **Observability**: `status()` surfaces `github_mirror_used` (last winner,
-  `"DIRECT"` if empty) and `github_mirror_probe` (per-mirror KB/s from the
-  last probe).
-- **Probe overhead**: 3–5 parallel 512KB GETs ≈ 1.5–2.5 MB per download,
-  <2% of a 138 MB binary. Downloads are infrequent (binary updates every
-  few weeks), so no caching is applied — each download re-probes.
+- **Routing**: mirror only proxies large asset downloads — it cannot proxy
+  `api.github.com` (used for listing releases / fetching sidecars). When the
+  cached winner is GitHub-related, list/manifest requests go to the GitHub
+  API directly (HTTPS, small JSON); download requests go through the mirror.
+  When the winner is CENTRAL, everything goes through central HTTP. The user
+  sees "one source for 5 minutes"; the routing is internal.
+- **Cold start**: when the cache is empty and a list/manifest request
+  arrives first (no download URL to probe), central-first + GitHub fallback
+  is used (existing behavior). The cache gets populated on the first
+  download, after which all requests follow the cached winner.
+- **Selection strategy**: before each download, fire a 512KB ranged GET at
+  every candidate in parallel (8s wall-clock cutoff). Pick highest
+  throughput; on failure or sha256-mismatch, fall through to the next
+  candidate in throughput order. All candidates failing → force re-probe.
+- **Security**: sha256 trust root priority = GitHub sidecar (HTTPS, fetched
+  DIRECT) > central manifest sha256 (HTTP). When GitHub has the version,
+  the sidecar's HTTPS-protected hash is the trust root — a malicious mirror
+  cannot influence it. When GitHub lacks the version, central's HTTP hash
+  is used (same as pre-change behavior). See README for details.
+- **Central version pin**: download URLs carry `?ver=<ver>` so the central
+  server can 404 on version skew (central ahead/behind GitHub), preventing
+  bandwidth waste on mismatched downloads.
+- **Observability**: `status()` surfaces `download_source_used` (last
+  winner: `"CENTRAL"` / `"DIRECT"` / mirror URL) and `download_probe`
+  (per-candidate KB/s from the last probe). Legacy `github_mirror_used` /
+  `github_mirror_probe` fields are preserved but only reflect GitHub-label
+  winners (None when CENTRAL won).
+- **Probe overhead**: 3–5 parallel 512KB GETs ≈ 1.5–2.5 MB per probe,
+  <2% of a 138 MB binary. Probes fire at most once per 5 min (cached).
+  Downloads are infrequent, so no caching is applied beyond the 5-min
+  source cache.
 
 Off (default `TM_GITHUB_MIRROR=""`) = built-in three candidates only.
 Mirrors see the public release URL being downloaded (no sensitive info).
