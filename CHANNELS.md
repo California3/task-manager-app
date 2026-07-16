@@ -117,6 +117,41 @@ chain.
 - Off (default) = current behavior: central first, GitHub only on
   failure.
 
+### Mirror acceleration (`TM_GITHUB_MIRROR`)
+
+GitHub release assets are served from `release-assets.githubusercontent.com`
+(Azure blob) which has bad peering from some networks — observed 16 KB/s
+direct vs 11.7 MB/s through a mirror on the same host. Clients can race
+multiple mirrors and pick the fastest per download.
+
+- **Built-in candidates** (always present): `DIRECT` (no rewrite),
+  `https://ghfast.top`, `https://gh-proxy.com`.
+- **User-configured**: `TM_GITHUB_MIRROR` env or Settings → Updates text
+  field, comma-separated extra prefixes (e.g.
+  `https://my-mirror.example.com`). Deduped against built-ins.
+- **Selection strategy**: before each download, fire a 512KB ranged GET at
+  every candidate in parallel (8s wall-clock cutoff — `urlopen(timeout=8)`
+  is per-recv not total, so a hard wall-clock is enforced). Pick highest
+  throughput; on failure or sha256-mismatch, fall through to the next
+  candidate in throughput order.
+- **URL form**: `f"{prefix}/{asset_url}"` where `asset_url` is the
+  `github.com/.../releases/download/...` URL (pre-302). The mirror follows
+  the redirect internally and streams back. `DIRECT` (`""`) leaves the URL
+  unchanged.
+- **Security**: the sha256 sidecar is fetched DIRECT from GitHub (inside
+  `github_latest_by_prefix`, NOT mirrored), so retry-on-mismatch is safe —
+  every mirror's bytes verify against the same GitHub-sourced hash. A
+  malicious mirror cannot influence the check; it can only fail it.
+- **Observability**: `status()` surfaces `github_mirror_used` (last winner,
+  `"DIRECT"` if empty) and `github_mirror_probe` (per-mirror KB/s from the
+  last probe).
+- **Probe overhead**: 3–5 parallel 512KB GETs ≈ 1.5–2.5 MB per download,
+  <2% of a 138 MB binary. Downloads are infrequent (binary updates every
+  few weeks), so no caching is applied — each download re-probes.
+
+Off (default `TM_GITHUB_MIRROR=""`) = built-in three candidates only.
+Mirrors see the public release URL being downloaded (no sensitive info).
+
 ## Rollback
 
 Two equivalent mechanisms:

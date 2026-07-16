@@ -123,3 +123,19 @@ directly from this repo. Use cases: testing the fallback path without
 taking central down, central known-bad / stale, debugging the GitHub
 consume chain. See `CHANNELS.md` for the full truth table and
 short-circuit protection.
+
+## Mirror acceleration
+
+GitHub release assets are served from `release-assets.githubusercontent.com`
+(Azure blob) which has bad peering from some networks — observed 16 KB/s
+direct vs 11.7 MB/s through `ghfast.top` on the same host. `TM_GITHUB_MIRROR`
+(env var, or Settings → Updates text field) lets the client race multiple
+mirrors and pick the fastest per download.
+
+Built-in candidates (always present): `DIRECT`, `https://ghfast.top`,
+`https://gh-proxy.com`. The env var adds extra comma-separated prefixes.
+Before each download, all candidates are probed in parallel (512KB ranged
+GET, 8s wall-clock); the fastest wins, with fall-through on failure or
+sha256-mismatch. The sha256 sidecar is fetched DIRECT from GitHub (not
+mirrored), so retry-on-mismatch is safe. See `CHANNELS.md` for the full
+design.
